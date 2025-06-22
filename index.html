@@ -85,6 +85,41 @@
 
         <!-- Loading, Error, and Repo List Section -->
         <div id="repo-display-section" class="hidden">
+            <!-- Searched User Profile Summary -->
+            <div id="searched-user-profile" class="bg-blue-50 p-4 rounded-lg shadow-inner mb-6 text-left hidden">
+                <div class="flex items-center mb-2">
+                    <img id="searched-user-avatar" class="w-12 h-12 rounded-full border border-blue-300 mr-4" alt="Searched User Avatar">
+                    <div>
+                        <p id="searched-user-name" class="font-bold text-lg text-gray-800"></p>
+                        <p id="searched-user-bio" class="text-sm text-gray-600"></p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap text-sm text-gray-700">
+                    <span id="searched-user-repos" class="mr-4"></span>
+                    <span id="searched-user-followers" class="mr-4"></span>
+                    <span id="searched-user-following"></span>
+                </div>
+            </div>
+
+            <!-- Filter and Sort Options -->
+            <div class="flex flex-wrap justify-between items-center mb-4 space-y-2 sm:space-y-0">
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <label for="sort-by" class="text-gray-700 text-sm">Sort by:</label>
+                    <select id="sort-by" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        <option value="stars">Stars</option>
+                        <option value="forks">Forks</option>
+                        <option value="updated">Last Updated</option>
+                        <option value="name">Name</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <label for="filter-language" class="text-gray-700 text-sm">Language:</label>
+                    <select id="filter-language" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        <option value="">All</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="loading-indicator" class="hidden flex justify-center items-center py-4">
                 <div class="loading-spinner"></div>
                 <p class="ml-3 text-gray-600">Loading repositories...</p>
@@ -92,7 +127,7 @@
 
             <div id="error-message" class="text-red-600 text-sm mt-4 hidden"></div>
 
-            <div id="repo-list" class="mt-8 text-left space-y-4 max-h-96 overflow-y-auto pr-2">
+            <div id="repo-list" class="mt-4 text-left space-y-4 max-h-96 overflow-y-auto pr-2">
                 <!-- Repositories will be loaded here -->
             </div>
         </div>
@@ -115,6 +150,8 @@
         let app;
         let auth;
         let userId;
+        let currentRepos = []; // To store fetched repos for sorting/filtering
+        let currentSearchedUser = null; // To store the profile of the currently searched user
 
         const authSection = document.getElementById('auth-section');
         const searchInputSection = document.getElementById('search-input-section');
@@ -133,6 +170,17 @@
         const userInfoDropdown = document.getElementById('user-info-dropdown');
         const backToSearchBtn = document.getElementById('back-to-search-btn');
         const backButtonContainer = document.getElementById('back-button-container');
+
+        const sortBySelect = document.getElementById('sort-by');
+        const filterLanguageSelect = document.getElementById('filter-language');
+        const searchedUserProfile = document.getElementById('searched-user-profile');
+        const searchedUserAvatar = document.getElementById('searched-user-avatar');
+        const searchedUserName = document.getElementById('searched-user-name');
+        const searchedUserBio = document.getElementById('searched-user-bio');
+        const searchedUserRepos = document.getElementById('searched-user-repos');
+        const searchedUserFollowers = document.getElementById('searched-user-followers');
+        const searchedUserFollowing = document.getElementById('searched-user-following');
+
 
         document.addEventListener('DOMContentLoaded', async () => {
             app = initializeApp(firebaseConfig);
@@ -191,50 +239,127 @@
             searchInputSection.classList.add('hidden');
             repoDisplaySection.classList.remove('hidden');
             backButtonContainer.classList.remove('hidden'); // Show back button
+            searchedUserProfile.classList.add('hidden'); // Hide profile until fetched
 
             loadingIndicator.classList.remove('hidden');
             repoList.innerHTML = '';
             displayMessage('');
 
             try {
-                const response = await fetch(`https://api.github.com/users/${username}/repos`);
-                if (!response.ok) {
-                    if (response.status === 404) {
+                const [userResponse, reposResponse] = await Promise.all([
+                    fetch(`https://api.github.com/users/${username}`),
+                    fetch(`https://api.github.com/users/${username}/repos?per_page=100`) // Fetch more to get languages
+                ]);
+
+                if (!userResponse.ok) {
+                    if (userResponse.status === 404) {
                         throw new Error(`User '${username}' not found.`);
-                    } else if (response.status === 403) {
-                        throw new Error('API rate limit exceeded. Please try again later.');
                     } else {
-                        throw new Error(`Error fetching repositories: ${response.statusText}`);
+                        throw new Error(`Error fetching user profile: ${userResponse.statusText}`);
                     }
                 }
-                const repos = await response.json();
-                displayRepos(repos);
+                if (!reposResponse.ok) {
+                    if (reposResponse.status === 403) {
+                        throw new Error('API rate limit exceeded for repositories. Please try again later.');
+                    } else {
+                        throw new Error(`Error fetching repositories: ${reposResponse.statusText}`);
+                    }
+                }
+
+                currentSearchedUser = await userResponse.json();
+                currentRepos = await reposResponse.json();
+
+                displaySearchedUserProfile(currentSearchedUser);
+                populateLanguageFilter(currentRepos);
+                applyFiltersAndSort(); // Apply default filters/sort on initial load
             } catch (error) {
-                console.error("Error fetching repos:", error);
+                console.error("Error fetching data:", error);
                 displayMessage(error.message, 'error');
+                // If there's an error, revert to search input
+                backToSearchBtn.click(); // Simulate a click on the back button
             } finally {
                 loadingIndicator.classList.add('hidden');
             }
         };
 
+        const displaySearchedUserProfile = (user) => {
+            searchedUserAvatar.src = user.avatar_url || 'https://placehold.co/100x100/aabbcc/ffffff?text=User';
+            searchedUserAvatar.alt = user.login;
+            searchedUserName.textContent = user.name || user.login;
+            searchedUserBio.textContent = user.bio || 'No bio available.';
+            searchedUserRepos.innerHTML = `<span class="material-icons text-base align-middle mr-1">folder</span> ${user.public_repos} Repos`;
+            searchedUserFollowers.innerHTML = `<span class="material-icons text-base align-middle mr-1">people</span> ${user.followers} Followers`;
+            searchedUserFollowing.innerHTML = `<span class="material-icons text-base align-middle mr-1">person_add</span> ${user.following} Following`;
+            searchedUserProfile.classList.remove('hidden');
+        };
+
+        const populateLanguageFilter = (repos) => {
+            const languages = new Set();
+            repos.forEach(repo => {
+                if (repo.language) {
+                    languages.add(repo.language);
+                }
+            });
+            filterLanguageSelect.innerHTML = '<option value="">All</option>';
+            Array.from(languages).sort().forEach(lang => {
+                const option = document.createElement('option');
+                option.value = lang;
+                option.textContent = lang;
+                filterLanguageSelect.appendChild(option);
+            });
+        };
+
+        const applyFiltersAndSort = () => {
+            let filteredRepos = [...currentRepos];
+
+            // Apply language filter
+            const selectedLanguage = filterLanguageSelect.value;
+            if (selectedLanguage) {
+                filteredRepos = filteredRepos.filter(repo => repo.language === selectedLanguage);
+            }
+
+            // Apply sorting
+            const sortBy = sortBySelect.value;
+            filteredRepos.sort((a, b) => {
+                if (sortBy === 'stars') {
+                    return b.stargazers_count - a.stargazers_count;
+                } else if (sortBy === 'forks') {
+                    return b.forks_count - a.forks_count;
+                } else if (sortBy === 'updated') {
+                    return new Date(b.updated_at) - new Date(a.updated_at);
+                } else if (sortBy === 'name') {
+                    return a.name.localeCompare(b.name);
+                }
+                return 0;
+            });
+            displayRepos(filteredRepos);
+        };
+
         const displayRepos = (repos) => {
+            repoList.innerHTML = '';
             if (repos.length === 0) {
-                repoList.innerHTML = '<p class="text-gray-500 text-center">No public repositories found for this user.</p>';
+                repoList.innerHTML = '<p class="text-gray-500 text-center">No repositories found matching your criteria.</p>';
                 return;
             }
             repos.forEach(repo => {
+                const lastUpdatedDate = new Date(repo.updated_at).toLocaleDateString();
                 const repoCard = document.createElement('div');
                 repoCard.className = 'bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center';
                 repoCard.innerHTML = `
-                    <div class="mb-2 sm:mb-0">
-                        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold text-lg">${repo.name}</a>
+                    <div class="mb-2 sm:mb-0 w-full sm:w-3/4">
+                        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold text-lg flex items-center">
+                            <span class="material-icons text-xl mr-1">book</span> ${repo.name}
+                        </a>
                         <p class="text-gray-700 text-sm">${repo.description || 'No description provided.'}</p>
-                        <div class="flex items-center text-gray-500 text-xs mt-1">
-                            ${repo.language ? `<span class="mr-3">🌐 ${repo.language}</span>` : ''}
-                            <span>⭐ ${repo.stargazers_count}</span>
+                        <div class="flex flex-wrap items-center text-gray-500 text-xs mt-2">
+                            ${repo.language ? `<span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">code</span> ${repo.language}</span>` : ''}
+                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">star</span> ${repo.stargazers_count}</span>
+                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">call_split</span> ${repo.forks_count}</span>
+                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">update</span> Updated ${lastUpdatedDate}</span>
+                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">bug_report</span> ${repo.open_issues_count} Issues</span>
                         </div>
                     </div>
-                    <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-200 transition-colors">
+                    <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-200 transition-colors mt-2 sm:mt-0">
                         View on GitHub
                     </a>
                 `;
@@ -247,18 +372,19 @@
 
             if (isGitHubLoggedIn) {
                 authSection.classList.add('hidden');
-                searchInputSection.classList.remove('hidden'); // Show search input by default
-                userIconContainer.classList.remove('hidden'); // Show user icon
+                searchInputSection.classList.remove('hidden');
+                userIconContainer.classList.remove('hidden');
                 userName.textContent = user.displayName || user.email || 'GitHub User';
                 userAvatar.src = user.photoURL || 'https://placehold.co/100x100/aabbcc/ffffff?text=User';
                 userAvatar.alt = user.displayName || 'User Avatar';
             } else {
                 authSection.classList.remove('hidden');
                 searchInputSection.classList.add('hidden');
-                repoDisplaySection.classList.add('hidden'); // Hide repo display
-                userIconContainer.classList.add('hidden'); // Hide user icon
-                backButtonContainer.classList.add('hidden'); // Hide back button
-                userInfoDropdown.classList.add('hidden'); // Hide dropdown if logged out
+                repoDisplaySection.classList.add('hidden');
+                userIconContainer.classList.add('hidden');
+                backButtonContainer.classList.add('hidden');
+                userInfoDropdown.classList.add('hidden');
+                searchedUserProfile.classList.add('hidden');
                 repoList.innerHTML = '';
                 githubUsernameInput.value = '';
                 displayMessage('');
@@ -281,25 +407,28 @@
             }
         };
 
-        // Event listener for toggling user info dropdown
         userIconBtn.addEventListener('click', () => {
             userInfoDropdown.classList.toggle('hidden');
         });
 
-        // Event listener for clicking outside the dropdown to close it
         document.addEventListener('click', (event) => {
             if (!userIconContainer.contains(event.target) && !userInfoDropdown.classList.contains('hidden')) {
                 userInfoDropdown.classList.add('hidden');
             }
         });
 
-        // Event listener for back button
         backToSearchBtn.addEventListener('click', () => {
             repoDisplaySection.classList.add('hidden');
             searchInputSection.classList.remove('hidden');
             backButtonContainer.classList.add('hidden');
-            displayMessage(''); // Clear any messages
-            repoList.innerHTML = ''; // Clear results
+            searchedUserProfile.classList.add('hidden'); // Hide profile on back
+            displayMessage('');
+            repoList.innerHTML = '';
+            githubUsernameInput.value = ''; // Clear input on back
+            currentRepos = []; // Clear current repos
+            currentSearchedUser = null; // Clear current user
+            filterLanguageSelect.innerHTML = '<option value="">All</option>'; // Reset language filter
+            sortBySelect.value = 'stars'; // Reset sort
         });
 
         githubLoginBtn.addEventListener('click', signInWithGitHub);
@@ -310,7 +439,12 @@
                 fetchRepos();
             }
         });
+
+        // Add event listeners for sort and filter changes
+        sortBySelect.addEventListener('change', applyFiltersAndSort);
+        filterLanguageSelect.addEventListener('change', applyFiltersAndSort);
     </script>
 </body>
 </html>
+
 
