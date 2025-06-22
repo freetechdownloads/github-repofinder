@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Repo Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-lg shadow-xl max-w-2xl w-full text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">GitHub Repository Viewer</h1>
+
+        <!-- Authentication Section -->
+        <div id="auth-section">
+            <p class="text-gray-600 mb-6">Connect your GitHub account to get started.</p>
+            <button id="github-login-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                <svg class="inline-block w-5 h-5 mr-2 -mt-1" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.498.09.668-.217.668-.483 0-.237-.008-.865-.013-1.702-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.004.072 1.531 1.032 1.531 1.032.892 1.529 2.341 1.082 2.91.821.092-.647.35-1.082.636-1.332-2.22-.251-4.555-1.113-4.555-4.956 0-1.092.39-1.983 1.029-2.675-.103-.251-.446-1.266.098-2.64 0 0 .84-.27 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.701.11 2.516.326 1.909-1.296 2.747-1.025 2.747-1.025.546 1.373.202 2.389.096 2.64.64.693 1.029 1.583 1.029 2.675 0 3.853-2.339 4.69-4.566 4.943.359.309.678.92.678 1.855 0 1.335-.012 2.41-.012 2.72 0 .268.16.578.674.482C21.137 20.28 24 16.517 24 12.017 24 6.484 19.522 2 12 2z" clip-rule="evenodd" />
+                </svg>
+                Connect with GitHub
+            </button>
+        </div>
+
+        <!-- User Profile and Search Section -->
+        <div id="app-section" class="hidden">
+            <div class="flex items-center justify-center space-x-4 mb-6">
+                <img id="user-avatar" class="w-16 h-16 rounded-full border-2 border-blue-400" alt="User Avatar">
+                <div>
+                    <p id="user-name" class="text-xl font-semibold text-gray-800"></p>
+                    <button id="logout-btn" class="text-red-500 hover:text-red-700 text-sm font-medium mt-1 focus:outline-none">Logout</button>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <input type="text" id="github-username-input" placeholder="Enter GitHub username" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button id="search-repos-btn" class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+                    Search Repositories
+                </button>
+            </div>
+
+            <div id="loading-indicator" class="hidden flex justify-center items-center py-4">
+                <div class="loading-spinner"></div>
+                <p class="ml-3 text-gray-600">Loading repositories...</p>
+            </div>
+
+            <div id="error-message" class="text-red-600 text-sm mt-4 hidden"></div>
+
+            <div id="repo-list" class="mt-8 text-left space-y-4 max-h-96 overflow-y-auto pr-2">
+                <!-- Repositories will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GithubAuthProvider, signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD3GcWcE_bu-bJANsTwXrfEuylevGP0QnM",
+            authDomain: "cxcx-29619.firebaseapp.com",
+            projectId: "cxcx-29619",
+            storageBucket: "cxcx-29619.firebasestorage.app",
+            messagingSenderId: "440041700133",
+            appId: "1:440041700133:web:a07ad939ea7628710e78cc"
+        };
+
+        let app;
+        let auth;
+        let userId;
+
+        const authSection = document.getElementById('auth-section');
+        const appSection = document.getElementById('app-section');
+        const githubLoginBtn = document.getElementById('github-login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userName = document.getElementById('user-name');
+        const userAvatar = document.getElementById('user-avatar');
+        const githubUsernameInput = document.getElementById('github-username-input');
+        const searchReposBtn = document.getElementById('search-repos-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const errorMessage = document.getElementById('error-message');
+        const repoList = document.getElementById('repo-list');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+
+            // Attempt to sign in with custom token if available (for Canvas environment)
+            if (typeof __initial_auth_token !== 'undefined') {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } catch (error) {
+                    console.error("Error signing in with custom token, signing in anonymously:", error);
+                    await signInAnonymously(auth); // Fallback to anonymous if custom token fails
+                }
+            } else {
+                await signInAnonymously(auth); // Sign in anonymously if no custom token
+            }
+
+            // Listen for authentication state changes and update UI accordingly
+            onAuthStateChanged(auth, (user) => {
+                userId = user ? user.uid : crypto.randomUUID();
+                updateAuthUI(user);
+            });
+        });
+
+        // Function to handle GitHub sign-in
+        const signInWithGitHub = async () => {
+            const provider = new GithubAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("GitHub Sign-in Error:", error);
+                // Display user-friendly message for common errors
+                if (error.code === 'auth/popup-closed-by-user') {
+                    displayMessage('Sign-in cancelled by user.', 'error');
+                } else if (error.code === 'auth/cancelled-popup-request') {
+                    displayMessage('Multiple sign-in attempts detected. Please try again.', 'error');
+                } else {
+                    displayMessage(`GitHub sign-in failed: ${error.message}`, 'error');
+                }
+            }
+        };
+
+        // Function to handle user sign-out
+        const signOutUser = async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Sign-out Error:", error);
+                displayMessage(`Sign-out failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Function to fetch GitHub repositories
+        const fetchRepos = async () => {
+            const username = githubUsernameInput.value.trim();
+            if (!username) {
+                displayMessage('Please enter a GitHub username.', 'error');
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            repoList.innerHTML = ''; // Clear previous results
+            displayMessage(''); // Clear previous error messages
+
+            try {
+                const response = await fetch(`https://api.github.com/users/${username}/repos`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error(`User '${username}' not found.`);
+                    } else if (response.status === 403) {
+                        throw new Error('API rate limit exceeded. Please try again later.');
+                    } else {
+                        throw new Error(`Error fetching repositories: ${response.statusText}`);
+                    }
+                }
+                const repos = await response.json();
+                displayRepos(repos);
+            } catch (error) {
+                console.error("Error fetching repos:", error);
+                displayMessage(error.message, 'error');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        };
+
+        // Function to display fetched repositories
+        const displayRepos = (repos) => {
+            if (repos.length === 0) {
+                repoList.innerHTML = '<p class="text-gray-500 text-center">No public repositories found for this user.</p>';
+                return;
+            }
+            repos.forEach(repo => {
+                const repoCard = document.createElement('div');
+                repoCard.className = 'bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center';
+                repoCard.innerHTML = `
+                    <div class="mb-2 sm:mb-0">
+                        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold text-lg">${repo.name}</a>
+                        <p class="text-gray-700 text-sm">${repo.description || 'No description provided.'}</p>
+                        <div class="flex items-center text-gray-500 text-xs mt-1">
+                            ${repo.language ? `<span class="mr-3">🌐 ${repo.language}</span>` : ''}
+                            <span>⭐ ${repo.stargazers_count}</span>
+                        </div>
+                    </div>
+                    <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-200 transition-colors">
+                        View on GitHub
+                    </a>
+                `;
+                repoList.appendChild(repoCard);
+            });
+        };
+
+        // Function to update the UI based on authentication status
+        const updateAuthUI = (user) => {
+            // Check if the user is logged in AND specifically through GitHub
+            const isGitHubLoggedIn = user && user.providerData.some(provider => provider.providerId === 'github.com');
+
+            if (isGitHubLoggedIn) {
+                authSection.classList.add('hidden');
+                appSection.classList.remove('hidden');
+                userName.textContent = user.displayName || user.email || 'GitHub User';
+                userAvatar.src = user.photoURL || 'https://placehold.co/100x100/aabbcc/ffffff?text=User'; // Placeholder if no photo
+                userAvatar.alt = user.displayName || 'User Avatar';
+            } else {
+                // If not a GitHub user or not logged in, show auth section
+                authSection.classList.remove('hidden');
+                appSection.classList.add('hidden');
+                repoList.innerHTML = ''; // Clear repos when logging out or not a GitHub user
+                githubUsernameInput.value = ''; // Clear search input
+                displayMessage(''); // Clear messages
+            }
+        };
+
+        // Function to display messages (errors/info) to the user
+        const displayMessage = (message, type = 'info') => {
+            errorMessage.textContent = message;
+            if (message) {
+                errorMessage.classList.remove('hidden');
+                if (type === 'error') {
+                    errorMessage.classList.add('text-red-600');
+                    errorMessage.classList.remove('text-green-600');
+                } else {
+                    errorMessage.classList.add('text-green-600');
+                    errorMessage.classList.remove('text-red-600');
+                }
+            } else {
+                errorMessage.classList.add('hidden');
+            }
+        };
+
+        // Event listeners for buttons and input
+        githubLoginBtn.addEventListener('click', signInWithGitHub);
+        logoutBtn.addEventListener('click', signOutUser);
+        searchReposBtn.addEventListener('click', fetchRepos);
+        githubUsernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                fetchRepos();
+            }
+        });
+    </script>
+</body>
+</html>
