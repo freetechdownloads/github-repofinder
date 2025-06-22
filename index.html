@@ -4,21 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitHub Repo Viewer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background-color: #e2e8f0; /* Light gray background */
+        }
+        .container-card {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* More rounded corners */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08), 0 3px 6px rgba(0, 0, 0, 0.05); /* Softer, deeper shadow */
+            padding: 2.5rem;
+            max-width: 38rem; /* Slightly wider */
+            width: 100%;
+            position: relative;
+            overflow: hidden; /* Ensures shadows and rounded corners apply correctly */
+        }
+        .gradient-button {
+            background-image: linear-gradient(to right, #6366f1, #3b82f6); /* Indigo to Blue */
+            transition: all 0.3s ease;
+        }
+        .gradient-button:hover {
+            background-image: linear-gradient(to right, #4f46e5, #2563eb);
+            transform: translateY(-2px); /* Slight lift on hover */
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.4);
+        }
+        .gradient-button:active {
+            transform: translateY(0);
+            box-shadow: none;
         }
         .loading-spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #3b82f6;
+            border: 4px solid rgba(156, 163, 175, 0.3); /* Gray-400 with transparency */
+            border-top: 4px solid #3b82f6; /* Tailwind blue-500 */
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
+            width: 28px; /* Slightly larger */
+            height: 28px;
+            animation: spin 0.8s linear infinite; /* Faster spin */
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -26,47 +49,71 @@
         }
         .user-info-dropdown {
             position: absolute;
-            top: 70px; /* Adjust as needed */
+            top: 4.5rem; /* Adjust based on user icon position */
             right: 0;
-            background-color: white;
+            background-color: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0.75rem; /* More rounded */
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1); /* Stronger shadow */
             z-index: 10;
+            min-width: 12rem;
+            padding: 1rem;
+        }
+        .repo-card {
+            background-color: #f8fafc; /* Lighter background for cards */
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .repo-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        select, input[type="text"] {
+            border-radius: 0.75rem; /* Match other elements */
+            padding: 0.75rem 1rem; /* More padding */
+            border: 1px solid #d1d5db; /* Gray-300 */
+            transition: all 0.2s ease;
+        }
+        select:focus, input[type="text"]:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8">
 
-    <div class="bg-white p-8 rounded-lg shadow-xl max-w-2xl w-full text-center relative">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">GitHub Repository Viewer</h1>
-
-        <!-- User Icon and Dropdown -->
-        <div id="user-icon-container" class="absolute top-4 right-4 hidden">
-            <button id="user-icon-btn" class="p-2 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
-                <span class="material-icons text-gray-600 text-3xl">account_circle</span>
-            </button>
-            <div id="user-info-dropdown" class="user-info-dropdown hidden">
-                <div class="flex flex-col items-center p-4">
-                    <img id="user-avatar" class="w-16 h-16 rounded-full border-2 border-blue-400 mb-2" alt="User Avatar">
-                    <p id="user-name" class="text-lg font-semibold text-gray-800 mb-2"></p>
-                    <button id="logout-btn" class="text-red-500 hover:text-red-700 text-sm font-medium focus:outline-none">Logout</button>
+    <div class="container-card text-center">
+        <!-- Header with Title, User Icon, and Back Button -->
+        <div class="flex justify-between items-center mb-8">
+            <!-- Back Button -->
+            <div id="back-button-container" class="hidden">
+                <button id="back-to-search-btn" class="p-2 rounded-full text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <span class="material-icons text-3xl">arrow_back</span>
+                </button>
+            </div>
+            <!-- Title -->
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 flex-grow">GitHub Explorer</h1>
+            <!-- User Icon and Dropdown -->
+            <div id="user-icon-container" class="hidden z-20">
+                <button id="user-icon-btn" class="p-2 rounded-full text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <span class="material-icons text-3xl">account_circle</span>
+                </button>
+                <div id="user-info-dropdown" class="user-info-dropdown hidden">
+                    <div class="flex flex-col items-center">
+                        <img id="user-avatar" class="w-20 h-20 rounded-full border-4 border-blue-300 mb-3 shadow-md" alt="User Avatar">
+                        <p id="user-name" class="text-xl font-semibold text-gray-800 mb-2"></p>
+                        <button id="logout-btn" class="text-red-500 hover:text-red-600 font-medium py-1 px-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-300">Logout</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Back Button for Search Results -->
-        <div id="back-button-container" class="absolute top-4 left-4 hidden">
-            <button id="back-to-search-btn" class="p-2 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
-                <span class="material-icons text-gray-600 text-3xl">arrow_back</span>
-            </button>
-        </div>
-
         <!-- Authentication Section -->
-        <div id="auth-section">
-            <p class="text-gray-600 mb-6">Connect your GitHub account to get started.</p>
-            <button id="github-login-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
-                <svg class="inline-block w-5 h-5 mr-2 -mt-1" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <div id="auth-section" class="flex flex-col items-center">
+            <p class="text-gray-600 mb-8 text-lg">Connect your GitHub account to unleash the power of repository exploration!</p>
+            <button id="github-login-btn" class="gradient-button text-white font-bold py-4 px-8 rounded-full shadow-lg flex items-center justify-center">
+                <svg class="h-6 w-6 mr-3 align-middle flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.498.09.668-.217.668-.483 0-.237-.008-.865-.013-1.702-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.004.072 1.531 1.032 1.531 1.032.892 1.529 2.341 1.082 2.91.821.092-.647.35-1.082.636-1.332-2.22-.251-4.555-1.113-4.555-4.956 0-1.092.39-1.983 1.029-2.675-.103-.251-.446-1.266.098-2.64 0 0 .84-.27 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.701.11 2.516.326 1.909-1.296 2.747-1.025 2.747-1.025.546 1.373.202 2.389.096 2.64.64.693 1.029 1.583 1.029 2.675 0 3.853-2.339 4.69-4.566 4.943.359.309.678.92.678 1.855 0 1.335-.012 2.41-.012 2.72 0 .268.16.578.674.482C21.137 20.28 24 16.517 24 12.017 24 6.484 19.522 2 12 2z" clip-rule="evenodd" />
                 </svg>
                 Connect with GitHub
@@ -76,8 +123,9 @@
         <!-- Search Input Section -->
         <div id="search-input-section" class="hidden">
             <div class="mb-6">
-                <input type="text" id="github-username-input" placeholder="Enter GitHub username" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <button id="search-repos-btn" class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+                <input type="text" id="github-username-input" placeholder="Enter GitHub username" class="w-full text-center text-lg p-3 rounded-xl focus:ring-blue-400 focus:border-blue-400">
+                <button id="search-repos-btn" class="gradient-button text-white font-bold py-3 px-6 mt-4 w-full rounded-xl shadow-lg">
+                    <span class="material-icons align-middle mr-2">search</span>
                     Search Repositories
                 </button>
             </div>
@@ -86,48 +134,52 @@
         <!-- Loading, Error, and Repo List Section -->
         <div id="repo-display-section" class="hidden">
             <!-- Searched User Profile Summary -->
-            <div id="searched-user-profile" class="bg-blue-50 p-4 rounded-lg shadow-inner mb-6 text-left hidden">
-                <div class="flex items-center mb-2">
-                    <img id="searched-user-avatar" class="w-12 h-12 rounded-full border border-blue-300 mr-4" alt="Searched User Avatar">
+            <div id="searched-user-profile" class="bg-blue-100 p-5 rounded-xl shadow-md mb-6 text-left border border-blue-200 hidden">
+                <div class="flex flex-col sm:flex-row items-center sm:items-start mb-4">
+                    <img id="searched-user-avatar" class="w-24 h-24 rounded-full border-4 border-blue-400 shadow-lg mr-0 sm:mr-6 mb-4 sm:mb-0" alt="Searched User Avatar">
                     <div>
-                        <p id="searched-user-name" class="font-bold text-lg text-gray-800"></p>
-                        <p id="searched-user-bio" class="text-sm text-gray-600"></p>
+                        <p id="searched-user-name" class="font-extrabold text-2xl text-gray-800 break-words mb-1"></p>
+                        <p id="searched-user-login" class="text-blue-700 text-md mb-2"></p>
+                        <p id="searched-user-bio" class="text-sm text-gray-700 leading-relaxed"></p>
+                        <a id="searched-user-github-link" href="#" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-sm flex items-center mt-2">
+                            <span class="material-icons text-base mr-1">link</span> View on GitHub
+                        </a>
                     </div>
                 </div>
-                <div class="flex flex-wrap text-sm text-gray-700">
-                    <span id="searched-user-repos" class="mr-4"></span>
-                    <span id="searched-user-followers" class="mr-4"></span>
-                    <span id="searched-user-following"></span>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-gray-700 border-t border-blue-200 pt-4 mt-4">
+                    <span id="searched-user-repos" class="flex items-center"><span class="material-icons text-lg mr-1 text-blue-600">folder</span> <span class="font-semibold"></span> Repos</span>
+                    <span id="searched-user-followers" class="flex items-center"><span class="material-icons text-lg mr-1 text-blue-600">people</span> <span class="font-semibold"></span> Followers</span>
+                    <span id="searched-user-following" class="flex items-center"><span class="material-icons text-lg mr-1 text-blue-600">person_add</span> <span class="font-semibold"></span> Following</span>
                 </div>
             </div>
 
             <!-- Filter and Sort Options -->
-            <div class="flex flex-wrap justify-between items-center mb-4 space-y-2 sm:space-y-0">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0 sm:space-x-4">
                 <div class="flex items-center space-x-2 w-full sm:w-auto">
-                    <label for="sort-by" class="text-gray-700 text-sm">Sort by:</label>
-                    <select id="sort-by" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                        <option value="stars">Stars</option>
-                        <option value="forks">Forks</option>
-                        <option value="updated">Last Updated</option>
-                        <option value="name">Name</option>
+                    <label for="sort-by" class="text-gray-700 font-medium">Sort by:</label>
+                    <select id="sort-by" class="flex-grow p-2 rounded-xl focus:ring-blue-400 focus:border-blue-400 text-sm">
+                        <option value="stars">⭐ Stars</option>
+                        <option value="forks">🍴 Forks</option>
+                        <option value="updated">⏰ Last Updated</option>
+                        <option value="name">🏷️ Name</option>
                     </select>
                 </div>
                 <div class="flex items-center space-x-2 w-full sm:w-auto">
-                    <label for="filter-language" class="text-gray-700 text-sm">Language:</label>
-                    <select id="filter-language" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <label for="filter-language" class="text-gray-700 font-medium">Language:</label>
+                    <select id="filter-language" class="flex-grow p-2 rounded-xl focus:ring-blue-400 focus:border-blue-400 text-sm">
                         <option value="">All</option>
                     </select>
                 </div>
             </div>
 
-            <div id="loading-indicator" class="hidden flex justify-center items-center py-4">
+            <div id="loading-indicator" class="hidden flex justify-center items-center py-8">
                 <div class="loading-spinner"></div>
-                <p class="ml-3 text-gray-600">Loading repositories...</p>
+                <p class="ml-4 text-gray-600 text-lg">Loading repositories...</p>
             </div>
 
             <div id="error-message" class="text-red-600 text-sm mt-4 hidden"></div>
 
-            <div id="repo-list" class="mt-4 text-left space-y-4 max-h-96 overflow-y-auto pr-2">
+            <div id="repo-list" class="mt-4 text-left space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 custom-scrollbar">
                 <!-- Repositories will be loaded here -->
             </div>
         </div>
@@ -146,7 +198,6 @@
             messagingSenderId: "440041700133",
             appId: "1:440041700133:web:a07ad939ea7628710e78cc"
         };
-
         let app;
         let auth;
         let userId;
@@ -176,10 +227,12 @@
         const searchedUserProfile = document.getElementById('searched-user-profile');
         const searchedUserAvatar = document.getElementById('searched-user-avatar');
         const searchedUserName = document.getElementById('searched-user-name');
+        const searchedUserLogin = document.getElementById('searched-user-login');
         const searchedUserBio = document.getElementById('searched-user-bio');
-        const searchedUserRepos = document.getElementById('searched-user-repos');
-        const searchedUserFollowers = document.getElementById('searched-user-followers');
-        const searchedUserFollowing = document.getElementById('searched-user-following');
+        const searchedUserRepos = searchedUserProfile.querySelector('#searched-user-repos span:last-child');
+        const searchedUserFollowers = searchedUserProfile.querySelector('#searched-user-followers span:last-child');
+        const searchedUserFollowing = searchedUserProfile.querySelector('#searched-user-following span:last-child');
+        const searchedUserGithubLink = document.getElementById('searched-user-github-link');
 
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -286,10 +339,12 @@
             searchedUserAvatar.src = user.avatar_url || 'https://placehold.co/100x100/aabbcc/ffffff?text=User';
             searchedUserAvatar.alt = user.login;
             searchedUserName.textContent = user.name || user.login;
+            searchedUserLogin.textContent = `@${user.login}`;
             searchedUserBio.textContent = user.bio || 'No bio available.';
-            searchedUserRepos.innerHTML = `<span class="material-icons text-base align-middle mr-1">folder</span> ${user.public_repos} Repos`;
-            searchedUserFollowers.innerHTML = `<span class="material-icons text-base align-middle mr-1">people</span> ${user.followers} Followers`;
-            searchedUserFollowing.innerHTML = `<span class="material-icons text-base align-middle mr-1">person_add</span> ${user.following} Following`;
+            searchedUserRepos.textContent = `${user.public_repos}`;
+            searchedUserFollowers.textContent = `${user.followers}`;
+            searchedUserFollowing.textContent = `${user.following}`;
+            searchedUserGithubLink.href = user.html_url;
             searchedUserProfile.classList.remove('hidden');
         };
 
@@ -338,29 +393,29 @@
         const displayRepos = (repos) => {
             repoList.innerHTML = '';
             if (repos.length === 0) {
-                repoList.innerHTML = '<p class="text-gray-500 text-center">No repositories found matching your criteria.</p>';
+                repoList.innerHTML = '<p class="text-gray-500 text-center py-4">No repositories found matching your criteria.</p>';
                 return;
             }
             repos.forEach(repo => {
                 const lastUpdatedDate = new Date(repo.updated_at).toLocaleDateString();
                 const repoCard = document.createElement('div');
-                repoCard.className = 'bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center';
+                repoCard.className = 'repo-card p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center';
                 repoCard.innerHTML = `
                     <div class="mb-2 sm:mb-0 w-full sm:w-3/4">
-                        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold text-lg flex items-center">
-                            <span class="material-icons text-xl mr-1">book</span> ${repo.name}
+                        <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline font-semibold text-lg flex items-center mb-1">
+                            <span class="material-icons text-xl mr-2 text-blue-500">book</span> ${repo.name}
                         </a>
-                        <p class="text-gray-700 text-sm">${repo.description || 'No description provided.'}</p>
-                        <div class="flex flex-wrap items-center text-gray-500 text-xs mt-2">
-                            ${repo.language ? `<span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">code</span> ${repo.language}</span>` : ''}
-                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">star</span> ${repo.stargazers_count}</span>
-                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">call_split</span> ${repo.forks_count}</span>
-                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">update</span> Updated ${lastUpdatedDate}</span>
-                            <span class="mr-3 flex items-center"><span class="material-icons text-sm mr-1">bug_report</span> ${repo.open_issues_count} Issues</span>
+                        <p class="text-gray-700 text-sm mb-2">${repo.description || 'No description provided.'}</p>
+                        <div class="flex flex-wrap items-center text-gray-500 text-xs mt-2 space-x-3">
+                            ${repo.language ? `<span class="flex items-center"><span class="material-icons text-sm mr-1">code</span> ${repo.language}</span>` : ''}
+                            <span class="flex items-center"><span class="material-icons text-sm mr-1">star</span> ${repo.stargazers_count}</span>
+                            <span class="flex items-center"><span class="material-icons text-sm mr-1">call_split</span> ${repo.forks_count}</span>
+                            <span class="flex items-center"><span class="material-icons text-sm mr-1">update</span> Updated ${lastUpdatedDate}</span>
+                            <span class="flex items-center"><span class="material-icons text-sm mr-1">bug_report</span> ${repo.open_issues_count} Issues</span>
                         </div>
                     </div>
-                    <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-200 transition-colors mt-2 sm:mt-0">
-                        View on GitHub
+                    <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-blue-600 transition-colors duration-200 mt-3 sm:mt-0 shadow-md">
+                        View Repo
                     </a>
                 `;
                 repoList.appendChild(repoCard);
@@ -407,12 +462,14 @@
             }
         };
 
-        userIconBtn.addEventListener('click', () => {
+        userIconBtn.addEventListener('click', (event) => {
+            event.stopPropagation(); // Prevent document click from immediately closing
             userInfoDropdown.classList.toggle('hidden');
         });
 
         document.addEventListener('click', (event) => {
-            if (!userIconContainer.contains(event.target) && !userInfoDropdown.classList.contains('hidden')) {
+            // Close dropdown if click is outside the user icon and dropdown itself
+            if (!userIconContainer.contains(event.target) && !userInfoDropdown.contains(event.target) && !userInfoDropdown.classList.contains('hidden')) {
                 userInfoDropdown.classList.add('hidden');
             }
         });
@@ -421,14 +478,14 @@
             repoDisplaySection.classList.add('hidden');
             searchInputSection.classList.remove('hidden');
             backButtonContainer.classList.add('hidden');
-            searchedUserProfile.classList.add('hidden'); // Hide profile on back
+            searchedUserProfile.classList.add('hidden');
             displayMessage('');
             repoList.innerHTML = '';
-            githubUsernameInput.value = ''; // Clear input on back
-            currentRepos = []; // Clear current repos
-            currentSearchedUser = null; // Clear current user
-            filterLanguageSelect.innerHTML = '<option value="">All</option>'; // Reset language filter
-            sortBySelect.value = 'stars'; // Reset sort
+            githubUsernameInput.value = '';
+            currentRepos = [];
+            currentSearchedUser = null;
+            filterLanguageSelect.innerHTML = '<option value="">All</option>';
+            sortBySelect.value = 'stars';
         });
 
         githubLoginBtn.addEventListener('click', signInWithGitHub);
@@ -440,11 +497,8 @@
             }
         });
 
-        // Add event listeners for sort and filter changes
         sortBySelect.addEventListener('change', applyFiltersAndSort);
         filterLanguageSelect.addEventListener('change', applyFiltersAndSort);
     </script>
 </body>
 </html>
-
-
